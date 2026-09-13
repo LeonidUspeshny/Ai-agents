@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+soundfile
+librosa
+pydantic
+python-multipart
+aiofiles
+numba
+ruaccent
