@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ИИ — Леонид</title>
+<style>
+:root{--bg:#0d1117;--card:#161b22;--border:#30363d;--text:#e6edf3;--muted:#8b949e;--accent:#58a6ff}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column}
+header{padding:14px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:14px;background:var(--card)}
+header h1{font-size:19px;font-weight:600}
+header .sub{color:var(--muted);font-size:12px}
+main{flex:1;display:flex;flex-direction:column}
+#chatBox{flex:1;overflow-y:auto;padding:10px 4px;max-height:calc(100vh - 210px)}
+#layout{display:flex;gap:6px;flex:1;max-width:900px;margin:0 auto;width:100%;padding:18px}
+#sidebar{width:150px;flex-shrink:0;background:var(--card);border:1px solid var(--border);border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:10px;align-self:flex-start}
+#chat-area{flex:1;display:flex;flex-direction:column;min-width:0}
+.sidebar-title{font-size:13px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.5px}
+.sidebar-hint{font-size:11px;color:var(--muted);line-height:1.4}
+.voice-group{display:flex;flex-direction:column;gap:6px}
+.voice-btn{text-align:left;padding:8px 12px!important;font-size:13px!important}
+.msg{max-width:78%;margin:10px 0;padding:10px 14px;border-radius:16px;font-size:15px;line-height:1.5;white-space:pre-wrap}
+.msg.user{align-self:flex-end;background:#1f6feb;border-bottom-right-radius:4px}
+.msg.assistant{align-self:flex-start;background:var(--card);border:1px solid var(--border);border-bottom-left-radius:4px}
+.msg .who{font-size:11px;color:var(--muted);margin-bottom:4px}
+.user .who{color:#b6d4ff}
+#inputRow{display:flex;gap:8px;padding:12px 0}
+#inputRow textarea{flex:1;background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:12px;padding:12px 14px;font-size:15px;resize:none;outline:none;font-family:inherit}
+#inputRow textarea:focus{border-color:var(--accent)}
+.btn{background:#21262d;border:1px solid var(--border);color:var(--text);border-radius:12px;padding:0 16px;font-size:15px;cursor:pointer;transition:.15s}
+.btn:hover{background:#30363d}
+.btn.send{background:var(--accent);border-color:var(--accent);color:#000;font-weight:600}
+.btn.mic-rec{background:#f85149;border-color:#f85149;animation:pulse 1s infinite}
+@keyframes pulse{50%{opacity:.6}}
+@keyframes blink-btn{0%,100%{box-shadow:0 0 0 0 var(--accent)}50%{box-shadow:0 0 0 4px var(--accent)}}
+.voice-blink{animation:blink-btn .6s ease-in-out 4}
+.hint{color:var(--muted);font-size:12px;padding:0 4px 10px}
+#typing{color:var(--muted);font-size:13px;min-height:20px;padding-left:6px}
+.name-row{display:flex;align-items:center;gap:8px}
+.name-row input{background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:5px 10px;font-size:13px;outline:none;width:160px}
+.name-row input:focus{border-color:var(--accent)}
+</style>
+</head>
+<body>
+<header>
+<div class="container" style="display:flex;align-items:center;gap:14px;width:100%">
+<img src="leonid.jpg" alt="Леонид" id="photo" style="width:48px;height:48px;border-radius:50%;object-fit:cover;flex-shrink:0">
+<div style="flex:1">
+<h1 id="mainTitle">ИИ — Леонид</h1>
+<div class="sub">Живой собеседник · GigaChat · запоминает разговор</div>
+</div>
+<div class="name-row">
+<span style="font-size:13px;color:var(--muted)">Твоё имя:</span>
+<input id="nameInput" placeholder="Леонид" maxlength="30">
+<button class="btn" onclick="saveName()">Сохранить</button>
+<button class="btn" onclick="clearHistory()" title="Очистить историю диалога" style="color:#f85149">Очистить</button>
+</div>
+</div>
+</header>
+
+<main>
+<div id="layout">
+<div id="sidebar">
+<div class="sidebar-title">Голос ассистента</div>
+<div class="voice-group">
+<button id="voiceLeonidBtn" class="btn voice-btn" style="background:#1f6feb;font-weight:600" onclick="setVoice('leonid')">👤 Леонид</button>
+<button id="voiceOptimusBtn" class="btn voice-btn" onclick="setVoice('optimus')">🤖 Оптимус</button>
+<button id="voiceChonishviliBtn" class="btn voice-btn" onclick="setVoice('chonishvili')">🎙️ Риддик</button>
+</div>
+<div class="sidebar-hint">Выбери голос для озвучивания ответов</div>
+</div>
+<div id="chat-area">
+<div id="chatBox"></div>
+<div id="typing"></div>
+<div class="hint">🔊 — включить голос. Нажми 🎤 и говори.</div>
+<div id="inputRow">
+<button class="btn" id="micBtn" onclick="toggleMic()" title="Голосовой ввод">🎤</button>
+<textarea id="input" rows="1" placeholder="Напиши Леониду..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();send()}"></textarea>
+<button class="btn send" onclick="send()">➤</button>
+<button class="btn" id="voiceBtn" onclick="toggleVoice()" title="Озвучивание ответов">🔇</button>
+</div>
+</div>
+</div>
+<audio id="audioPlayer" style="display:none"></audio>
+
+<script>
+let sessionId = localStorage.getItem('leonid_session');
+if (!sessionId) { sessionId = 's' + Math.random().toString(36).slice(2, 10); localStorage.setItem('leonid_session', sessionId); }
+let voiceEnabled = true;
+let currentVoice = 'leonid';
+
+function el(id){ return document.getElementById(id); }
+function esc(s){ var d=document.createElement('div'); d.textContent=s==null?'':String(s); return d.innerHTML; }
+
+// Переключение голоса
+async function setVoice(v){
+  currentVoice = v;
+  localStorage.setItem('leonid_voice', v);
+  try {
+    await fetch('api/voice?session=' + sessionId, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({voice: v})
+    });
+  } catch(e){ console.log('[voice] set error:', e); }
+  var lb = el('voiceLeonidBtn');
+  var ob = el('voiceOptimusBtn');
+  var cb = el('voiceChonishviliBtn');
+  if (lb) { lb.style.background = (v === 'leonid') ? '#1f6feb' : '#21262d'; lb.style.fontWeight = (v === 'leonid') ? '600' : '400'; }
+  if (ob) { ob.style.background = (v === 'optimus') ? '#1f6feb' : '#21262d'; ob.style.fontWeight = (v === 'optimus') ? '600' : '400'; }
+  if (cb) { cb.style.background = (v === 'chonishvili') ? '#1f6feb' : '#21262d'; cb.style.fontWeight = (v === 'chonishvili') ? '600' : '400'; }
+  document.querySelector('.hint').textContent = 'Голос: ' + (v === 'optimus' ? 'Оптимус Прайм' : (v === 'chonishvili' ? 'Риддик' : 'Леонид'));
+  // Меняем фото и заголовок в шапке
+  var photo = el('photo');
+  var title = el('mainTitle');
+  var names = {leonid: 'ИИ — Леонид', optimus: 'ИИ — Оптимус', chonishvili: 'ИИ — Риддик'};
+  var imgs = {leonid: 'leonid.jpg', optimus: 'optimus.jpg', chonishvili: 'riddick.jpg'};
+  if (title) title.textContent = names[v] || names.leonid;
+  if (photo) photo.src = imgs[v] || imgs.leonid;
+
+  // Запрос геолокации при активации персонажа
+  tryRequestLocation();
+}
+// init кнопок при загрузке
+document.addEventListener('DOMContentLoaded', function(){ setVoice(currentVoice); });
+
+// Геолокация — запрос и отправка на сервер
+function tryRequestLocation(){
+  if (!navigator.geolocation) return;
+  var cached = localStorage.getItem('leonid_location');
+  if (cached){
+    var loc = JSON.parse(cached);
+    if (Date.now() - loc.time < 120000) return; // кеш на 2 мин
+  }
+  navigator.geolocation.getCurrentPosition(function(pos){
+    var data = {lat: pos.coords.latitude, lon: pos.coords.longitude};
+    localStorage.setItem('leonid_location', JSON.stringify({time: Date.now(), ...data}));
+    fetch('api/location?session=' + sessionId, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(data)
+    }).then(function(r){ return r.json(); }).then(function(j){
+      console.log('[geo] местоположение:', j.city, j.street, j.poi);
+    }).catch(function(e){ console.log('[geo] error:', e); });
+  }, function(err){
+    console.log('[geo] denied or error:', err.message);
+  }, {enableHighAccuracy: true, timeout: 10000});
+}
+
+function addMsg(role, text){
+  var box = el('chatBox');
+  var div = document.createElement('div');
+  div.className = 'msg ' + role;
+  div.innerHTML = '<div class="who">' + (role==='user' ? 'Вы' : 'Леонид') + '</div>' + esc(text);
+  box.appendChild(div);
+  box.scrollTop = box.scrollHeight;
+  return div;
+}
+
+async function send(){
+  var input = el('input');
+  var text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  addMsg('user', text);
+  el('typing').textContent = 'Леонид печатает...';
+
+  // Используем стриминг: голос первого предложения звучит сразу
+  if (voiceEnabled){
+    streamSend(text);
+    return;
+  }
+
+  // Без голоса — обычный POST
+  try{
+    var r = await fetch('api/chat?session=' + sessionId, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({message: text, voice: currentVoice})
+    });
+    var raw = await r.text();
+    var data = {};
+    try { data = JSON.parse(raw); } catch(e){}
+    el('typing').textContent = '';
+    if (data.reply){
+      addMsg('assistant', data.reply);
+    } else if (data.error){
+      addMsg('assistant', 'Ошибка: ' + data.error);
+    } else {
+      addMsg('assistant', 'Ошибка: пустой ответ (' + r.status + ')');
+    }
+  }catch(e){
+    el('typing').textContent = '';
+    addMsg('assistant', 'Ошибка соединения: ' + e.message);
+  }
+}
+
+// Стриминг: текст печатается + голос каждого предложения сразу
+async function streamSend(text){
+  var msgDiv = null;
+  var fullText = '';
+  var audioQueue = [];
+  var playing = false;
+
+  function playNext(){
+    if (playing || audioQueue.length === 0) return;
+    var blob = audioQueue.shift();
+    var url = URL.createObjectURL(blob);
+    var audio = new Audio(url);
+    playing = true;
+    audio.onended = function(){
+      playing = false;
+      playNext();
+    };
+    audio.onerror = function(){
+      playing = false;
+      playNext();
+    };
+    var p = audio.play();
+    if (p !== undefined){
+      p.then(function(){
+        console.log('[voice] играет предложение');
+      }).catch(function(e){
+        playing = false;
+        console.log('[voice] autoplay blocked:', e);
+        // Fallback: кнопка в сообщении
+        if (msgDiv){
+          tryAddPlayButtons(msgDiv, audioQueue, url);
+        }
+      });
+    }
+  }
+
+  function tryAddPlayButtons(div, queue, firstUrl){
+    // добавляем кнопку для всех накопленных треков
+    if (div._playBtnsAdded) return;
+    div._playBtnsAdded = true;
+    var urls = [firstUrl];
+    while (queue.length > 0){
+      var b = queue.shift();
+      urls.push(URL.createObjectURL(b));
+    }
+    var btn = document.createElement('button');
+    btn.textContent = '▶ Прослушать (голос Леонида)';
+    btn.style.cssText = 'background:#21262d;border:1px solid #30363d;color:#e6edf3;border-radius:12px;padding:6px 14px;font-size:13px;cursor:pointer;margin-top:6px;display:inline-block';
+    btn.onclick = function(){
+      var i = 0;
+      function playSeq(){
+        if (i >= urls.length) return;
+        var a = new Audio(urls[i]);
+        i++;
+        a.onended = function(){ playSeq(); };
+        a.play();
+      }
+      playSeq();
+      btn.style.display = 'none';
+    };
+    div.appendChild(btn);
+  }
+
+  try{
+    var r = await fetch('api/chat/stream?session=' + sessionId, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({message: text, voice: currentVoice})
+    });
+    var reader = r.body.getReader();
+    var decoder = new TextDecoder();
+    var buffer = '';
+
+    while (true){
+      var chunk = await reader.read();
+      if (chunk.done) break;
+      buffer += decoder.decode(chunk.value, {stream: true});
+
+      var lines = buffer.split('\n');
+      buffer = lines.pop(); // остаток
+
+      for (var i = 0; i < lines.length; i++){
+        var line = lines[i].trim();
+        if (!line) continue;
+        try {
+          var ev = JSON.parse(line);
+          if (ev.type === 'text'){
+            fullText += ev.text + ' ';
+            if (!msgDiv) msgDiv = addMsg('assistant', '');
+            msgDiv.innerHTML = '<div class="who">Леонид</div>' + esc(fullText.trim());
+            el('chatBox').scrollTop = el('chatBox').scrollHeight;
+          } else if (ev.type === 'audio'){
+            try {
+              var bytes = Uint8Array.from(atob(ev.audio), function(c){ return c.charCodeAt(0); });
+              var buf = new ArrayBuffer(bytes.length);
+              var view = new Uint8Array(buf);
+              view.set(bytes);
+              audioQueue.push(new Blob([buf], {type: 'audio/wav'}));
+              if (audioQueue.length === 1) playNext();
+            } catch(e2){
+              console.log('[voice] audio decode error:', e2);
+            }
+          } else if (ev.type === 'done'){
+            el('typing').textContent = '';
+            if (ev.text) fullText = ev.text;
+            if (msgDiv){
+              msgDiv.innerHTML = '<div class="who">Леонид</div>' + esc(fullText.trim());
+            } else {
+              addMsg('assistant', fullText.trim());
+            }
+            el('chatBox').scrollTop = el('chatBox').scrollHeight;
+          } else if (ev.type === 'error'){
+            el('typing').textContent = '';
+            addMsg('assistant', 'Ошибка: ' + (ev.error || 'неизвестная'));
+          }
+        } catch(e){
+          console.log('[stream] parse error:', e, line.substring(0, 80));
+        }
+      }
+    }
+  }catch(e){
+    el('typing').textContent = '';
+    addMsg('assistant', 'Ошибка соединения: ' + e.message);
+  }
+}
+
+async function loadHistory(){
+  try{
+    var r = await fetch('api/history?session=' + sessionId);
+    var data = await r.json();
+    if (data.history && data.history.length){
+      el('chatBox').innerHTML = '';
+      data.history.forEach(function(m){
+        addMsg(m.role === 'user' ? 'user' : 'assistant', m.content);
+      });
+    }
+  }catch(e){}
+}
+
+async function saveName(){
+  var name = el('nameInput').value.trim();
+  await fetch('api/name?session=' + sessionId, {
+    method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({name:name})
+  });
+  var hint = document.querySelector('.hint');
+  hint.textContent = 'Леонид запомнил имя: ' + (name || '—');
+}
+
+async function clearHistory(){
+  if (!confirm('Очистить историю диалога? Леонид потеряет нить разговора.')) return;
+  var r = await fetch('api/chat/clear?session=' + sessionId, {method: 'POST'});
+  var data = await r.json();
+  el('chatBox').innerHTML = '';
+  document.querySelector('.hint').textContent = 'История диалога очищена.';
+}
+
+// Голосовой ввод (браузерное распознавание) — активен только по кнопке 🎤
+let recognition = null;
+let micActive = false;
+let micSendTimer = null;
+
+// Ключевые слова для активации персонажа
+var keywordMap = {
+  'леонид': 'leonid',
+  'лёня': 'leonid',
+  'оптимус': 'optimus',
+  'optimus': 'optimus',
+  'прайм': 'optimus',
+  'prime': 'optimus',
+  'автобот': 'optimus',
+  'риддик': 'chonishvili',
+  'ричард': 'chonishvili',
+};
+var pendingPersona = null;
+
+function flashVoiceBtn(voice){
+  var ids = {leonid:'voiceLeonidBtn', optimus:'voiceOptimusBtn', chonishvili:'voiceChonishviliBtn'};
+  var btn = el(ids[voice]);
+  if (!btn) return;
+  btn.classList.remove('voice-blink');
+  // форсируем reflow
+  void btn.offsetWidth;
+  btn.classList.add('voice-blink');
+  setTimeout(function(){ btn.classList.remove('voice-blink'); }, 3000);
+}
+
+function toggleMic(){
+  if (micActive) { stopMic(); return; }
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) {
+    alert('Голосовой ввод не поддерживается этим браузером. Используй Chrome/Edge последней версии.');
+    return;
+  }
+  recognition = new SR();
+  recognition.lang = 'ru-RU';
+  recognition.interimResults = true;
+  recognition.continuous = false;
+  micActive = true;
+  pendingPersona = null;
+  el('micBtn').classList.add('mic-rec');
+  el('micBtn').textContent = '⏹';
+  el('input').placeholder = 'Говори...';
+
+  recognition.onresult = function(e){
+    clearTimeout(micSendTimer);
+    var finalText = '';
+    var interimText = '';
+    for (var i = e.resultIndex; i < e.results.length; i++) {
+      if (e.results[i].isFinal) {
+        finalText += e.results[i][0].transcript;
+      } else {
+        interimText += e.results[i][0].transcript;
+      }
+    }
+    if (finalText){
+      var lower = finalText.toLowerCase().trim();
+      // Проверяем ключевые слова в начале распознанной речи
+      for (var kw in keywordMap){
+        if (lower.indexOf(kw) === 0 || lower.indexOf(' ' + kw) > 0){
+          var newVoice = keywordMap[kw];
+          if (newVoice !== currentVoice){
+            pendingPersona = newVoice;
+            setVoice(newVoice);
+            flashVoiceBtn(newVoice);
+          }
+          break;
+        }
+      }
+      el('input').value += (el('input').value ? ' ' : '') + finalText.trim();
+      el('input').focus();
+    }
+    if (interimText) el('input').placeholder = 'Говори...';
+  };
+  recognition.onerror = function(e){
+    console.log('[mic] ошибка:', e.error, e.message);
+    if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+      alert('Доступ к микрофону запрещён. Разреши микрофон в настройках браузера и перезагрузи страницу.');
+    }
+    stopMic();
+  };
+  recognition.onend = function(){
+    if (!micActive) return;
+    // Пауза в речи: если текст уже есть — через 3 сек отправляем
+    if (el('input').value.trim()){
+      micSendTimer = setTimeout(function(){ send(); stopMic(); }, 3000);
+    }
+    try { recognition.start(); } catch(e){ stopMic(); }
+  };
+  try { recognition.start(); } catch(e){ console.log('[mic] start error:', e); stopMic(); }
+}
+
+function stopMic(){
+  clearTimeout(micSendTimer);
+  if (recognition) { try { recognition.stop(); } catch(e){} }
+  micActive = false;
+  pendingPersona = null;
+  el('micBtn').classList.remove('mic-rec');
+  el('micBtn').textContent = '🎤';
+  el('input').placeholder = 'Напиши Леониду...';
+}
+
+// Озвучивание через GoVoice (клон голоса Леонида) с кнопкой в сообщении
+function speak(text, msgDiv){
+  fetch('api/tts', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({text: text})
+  }).then(function(r){
+    if (!r.ok) throw new Error('GoVoice error: ' + r.status);
+    return r.blob();
+  }).then(function(blob){
+    var url = URL.createObjectURL(blob);
+    // Пытаемся воспроизвести (автоплей может быть заблокирован)
+    var audio = new Audio(url);
+    var playPromise = audio.play();
+    if (playPromise !== undefined) {
+      playPromise.then(function(){
+        document.title = 'ИИ — Леонид (голос GoVoice)';
+        console.log('[voice] GoVoice воспроизводится');
+      }).catch(function(){
+        // Автоплей заблокирован — показываем кнопку в сообщении
+        document.title = 'ИИ — Леонид (+кнопка)';
+        if (msgDiv) addPlayButton(msgDiv, url);
+        console.log('[voice] GoVoice готов, ждёт клика');
+      });
+    }
+  }).catch(function(e){
+    // GoVoice недоступен — только тогда браузерный TTS
+    console.log('[voice] GoVoice error: ' + e.message + ' → browser TTS');
+    if (msgDiv) msgDiv.innerHTML += '<br><small style="color:var(--muted)">(голос: браузерный)</small>';
+    if (!('speechSynthesis' in window)) return;
+    speechSynthesis.cancel();
+    var u = new SpeechSynthesisUtterance(text);
+    u.lang = 'ru-RU'; u.rate = 1.0; u.pitch = 0.9;
+    speechSynthesis.speak(u);
+  });
+}
+
+// Воспроизведение WAV из base64 (голос приходит вместе с текстом — синхронно)
+function playBase64(b64, msgDiv){
+  try{
+    var bytes = Uint8Array.from(atob(b64), function(c){ return c.charCodeAt(0); });
+    var buf = new ArrayBuffer(bytes.length);
+    var view = new Uint8Array(buf);
+    view.set(bytes);
+    var blob = new Blob([buf], {type: 'audio/wav'});
+    var url = URL.createObjectURL(blob);
+    var audio = new Audio(url);
+    var p = audio.play();
+    if (p !== undefined){
+      p.then(function(){
+        document.title = 'ИИ — Леонид (голос GoVoice)';
+        console.log('[voice] GoVoice играет (вместе с текстом)');
+      }).catch(function(){
+        if (msgDiv) addPlayButton(msgDiv, url);
+        console.log('[voice] autoplay заблокирован, ждёт клика');
+      });
+    }
+  }catch(e){
+    console.log('[voice] base64 decode error:', e);
+  }
+}
+
+function addPlayButton(msgDiv, url){
+  var btn = document.createElement('button');
+  btn.textContent = '▶ Прослушать (голос Леонида)';
+  btn.style.cssText = 'background:#21262d;border:1px solid #30363d;color:#e6edf3;border-radius:12px;padding:6px 14px;font-size:13px;cursor:pointer;margin-top:6px;display:inline-block';
+  btn.onclick = function(){ var a = new Audio(url); a.play(); btn.style.display='none'; };
+  msgDiv.appendChild(btn);
+}
+function toggleVoice(){
+  voiceEnabled = !voiceEnabled;
+  var b = el('voiceBtn');
+  if (voiceEnabled){ b.textContent='🔊'; } else { b.textContent='🔇'; speechSynthesis.cancel(); }
+}
+
+// Инициация
+(async function(){
+  // Голос включён по умолчанию — показываем активную иконку
+  var vb = el('voiceBtn');
+  if (vb) vb.textContent = '🔊';
+  await loadHistory();
+})();
+</script>
+</body>
+</html>

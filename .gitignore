@@ -1,0 +1,28 @@
+# Секреты
+run.bat
+*.log
+*.err
+
+# Тяжёлые файлы / сборочные артефакты
+ai-leonid.exe
+ai-leonid.exe~
+go.sum
+
+# Python venv и кэши
+govoice/govoice-env/
+govoice/__pycache__/
+__pycache__/
+*.pyc
+
+# Голосовые модели и сэмплы
+govoice/data/*.wav
+*.wav
+
+# База данных
+data/
+*.db
+*.db-shm
+*.db-wal
+
+# Прочее
+.hotkey.lock
